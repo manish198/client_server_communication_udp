@@ -113,8 +113,9 @@ def send_udp_request(datagram_payload,hostname,port):
                     correct_ack=check_ack(response_data,sequence_number)
                     if correct_ack:
                         packet_ack_not_received[i] = False
+                        print(f'Ack received for {sequence_number}')
                 except socket.timeout:
-                    print(f'Socket timeout for Packet: {i}. Resending...')
+                    print(f'Socket timeout for Packet: {sequence_number}. Resending...')
                     continue
 
         for _ in packet_ack_not_received:
@@ -165,6 +166,44 @@ def get_http(args,location):
     #convert request to datagram payload
     datagram_payload=request.encode('utf-8')
     return send_udp_request(datagram_payload,hostname,port)
+
+def post_http(args):
+    url=args.url
+    #resolve the url components with custom resolve url method.
+    hostname,port,path,params=resolve_url(url)
+    #data from the command
+    data = args.data
+    #file from the command
+    file = args.file
+    response = b""
+    #list for the header if there is one
+    headers = {}
+    # creating a new socket object with socket constructor
+    postSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # AF_INET is for ipv4 and SOCK_STREAM is for TCP.
+
+    #if there is a header then split and save it in a list.
+    if(args.header):
+        headers=args.header[0].split(',')
+
+    # if there is a query params.
+    if params:
+        request = f"POST {path}?{params} HTTP/1.0\r\n"
+    else:
+        request = f"POST {path} HTTP/1.0\r\n"
+    request += f"Host: {hostname}\r\n"
+    # if there are headers.
+    for header in headers:
+        request += f"{header}\r\n"
+    request += f"Content-Length: {len(data)}\r\n\r\n"
+    # if there is a file.
+    if data:
+        request += f"{data}"
+    # there is a file.
+    elif file:
+        request += f"{file}"
+
+    datagram_payload = request.encode('utf-8')
+    return send_udp_request(datagram_payload, hostname, port)
 
 
 # def main():
@@ -271,14 +310,14 @@ if __name__=='__main__':
                 break
 
     # post method implementation
-    # elif method == 'post':
-    #     response = post_http(args)
-    #     # fetch the attributes of the response
-    #     headers, body, status_line, status_code, status_message = parse_response(response.decode())
-    #     # Display the response.
-    #     display_response(headers, body, args.verbose, args.filetowrite, status_code, status_message)
+    elif method == 'post':
+        response = post_http(args)
+        # fetch the attributes of the response
+        headers, body, status_line, status_code, status_message = parse_response(response)
+        # Display the response.
+        display_response(headers, body, args.verbose, args.filetowrite, status_code, status_message)
 
-    # if the request is not get or post
+    #if the request is not get or post
     else:
         print('Invaild Http Method!')
 
